@@ -179,7 +179,8 @@ class PathOption(Option):
 
 class ListOptionValue(list):
     """
-    Option aware list that updates underlying option on every change.
+    Option aware list that updates underlying option on every change,
+    so long as the conf.option attribute was not entirely reassigned.
     """
 
     def __init__(self, config, name, *args, **kwargs):
@@ -191,7 +192,18 @@ class ListOptionValue(list):
         def new_method(self, *args, **kwargs):
             method = getattr(super(ListOptionValue, self), name)
             result = method(*args, **kwargs)
-            self._config._set_value(self._name, self)
+            # only update backing value if we are still the 'canonical'
+            # instance. Consider the case where we do:
+            # conf.option = ref
+            # conf.option = ['new', 'value']
+            # ref.append('foo')
+            # the change to 'ref' there should not append 'foo' to
+            # conf.option. this tries to achieve that, together with
+            # the bit where BaseConfig.__setattr__ puts a new instance
+            # in the cache. See
+            # https://github.com/rpm-software-management/dnf/pull/1226
+            if self is self._config._lovcache[self._name]:
+                self._config._set_value(self._name, self)
             return result
         return new_method
 
@@ -217,6 +229,7 @@ class BaseConfig(object):
 
     def __init__(self, config=None, section=None, parser=None):
         self.__dict__["_config"] = config
+        self.__dict__["_lovcache"] = {}
         self._option = {}
         self._section = section
         self._parser = parser
@@ -233,6 +246,14 @@ class BaseConfig(object):
 
         setattr(type(self), name, property(prop_get, prop_set))
 
+    def __getattribute__(self, name):
+        if name == '__dict__' or name == '_lovcache':
+            return object.__getattribute__(self, name)
+        elif name in object.__getattribute__(self, '_lovcache'):
+            return object.__getattribute__(self, '_lovcache')[name]
+        else:
+            return object.__getattribute__(self, name)
+
     def __getattr__(self, name):
         if "_config" not in self.__dict__:
             raise AttributeError("'{}' object has no attribute '{}'".format(self.__class__, name))
@@ -243,10 +264,19 @@ class BaseConfig(object):
             value = option().getValue()
         except Exception as ex:
             return None
+        # every module generated with swig provides a different VectorString class
+        # that's why isinstance() is insufficient and the type has to be matched by name
         if isinstance(value, libdnf.conf.VectorString) or type(value).__name__ == "VectorString":
-            # every module generated with swig provides a different VectorString class
-            # that's why isinstance() is insufficient and the type has to be matched by name
-            return ListOptionValue(self, name, value)
+            # we cache these so they act more like real Python immutable
+            # types: when you take two references to the same one, you
+            # get the same object. Without that, if you take two refs to
+            # the same option for any reason, they can get out of sync
+            # with each other easily and then making changes to either
+            # one can have a result you did not expect. See
+            # https://github.com/rpm-software-management/dnf/pull/1226
+            if name not in self._lovcache:
+                self._lovcache[name] = ListOptionValue(self, name, value)
+            return self._lovcache[name]
         if isinstance(value, str):
             return ucd(value)
         return value
@@ -270,6 +300,10 @@ class BaseConfig(object):
             try:
                 if isinstance(value, list) or isinstance(value, tuple):
                     option().set(priority, libdnf.conf.VectorString(value))
+                    # refresh the ListOptionValue cache so existing instances
+                    # are no longer the 'active' one
+                    value = option().getValue()
+                    self._lovcache[name] = ListOptionValue(self, name, value)
                 elif (isinstance(option(), libdnf.conf.OptionBool) or
                       isinstance(option(), libdnf.conf.OptionChildBool)) and isinstance(value, int):
                     option().set(priority, bool(value))

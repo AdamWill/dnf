@@ -159,3 +159,25 @@ class ListOptionTest(unittest.TestCase):
         var.sort()
         self.assertEqual(self.conf.pluginpath, ["a", "b", "c"])
         self.assertEqual(var, ["a", "b", "c"])
+
+    def test_multiple_refs(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        ppath = self.conf.pluginpath
+        # should be two refs to the same object
+        self.assertIs(ppath, self.conf.pluginpath)
+        ppath.append("d")
+        # change should apply to both
+        self.assertEqual(ppath, self.conf.pluginpath)
+        self.assertEqual(self.conf.pluginpath, ["a", "b", "c", "d"])
+        self.conf.pluginpath.append("e")
+        # again, change should apply to both
+        self.assertEqual(ppath, self.conf.pluginpath)
+        self.assertEqual(self.conf.pluginpath, ["a", "b", "c", "d", "e"])
+        # reassign attribute
+        self.conf.pluginpath = ["1", "2", "3"]
+        # reference should *NO LONGER* be to the same object
+        self.assertIsNot(ppath, self.conf.pluginpath)
+        ppath.append("f")
+        # change to ppath should not affect attribute
+        self.assertEqual(ppath, ["a", "b", "c", "d", "e", "f"])
+        self.assertEqual(self.conf.pluginpath, ["1", "2", "3"])
