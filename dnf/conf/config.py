@@ -187,9 +187,24 @@ class ListOptionValue(list):
         super(ListOptionValue, self).__init__(*args, **kwargs)
         self._config = config
         self._name = name
+        self._cc = 0
 
-    def _wrap_list_method(name):
+    def _wrap_list_method(name, write=False):
         def new_method(self, *args, **kwargs):
+            # this is a counter for nested calls to _wrap_list_method.
+            # when you do something like `opt.append('foo')`, that results
+            # in a bunch of nested calls to __len__ and __getitem__. If
+            # we let the code below update from the backing store for all
+            # those, it winds up breaking the append operation. so we want
+            # to count nested calls, and only update from the backing store
+            # on the *outer* call.
+            self._cc += 1
+            # update the value from the backing store, if we are not a
+            # nested call
+            if self is self._config._lovcache[self._name] and self._cc == 1:
+                option = getattr(self._config._config, self._name)
+                value = option().getValue()
+                super(ListOptionValue, self).__init__(value)
             method = getattr(super(ListOptionValue, self), name)
             result = method(*args, **kwargs)
             # only update backing value if we are still the 'canonical'
@@ -202,22 +217,41 @@ class ListOptionValue(list):
             # the bit where BaseConfig.__setattr__ puts a new instance
             # in the cache. See
             # https://github.com/rpm-software-management/dnf/pull/1226
-            if self is self._config._lovcache[self._name]:
+            if self is self._config._lovcache[self._name] and write:
                 self._config._set_value(self._name, self)
+            self._cc -= 1
             return result
         return new_method
 
-    __iadd__ = _wrap_list_method("__iadd__")
-    __imul__ = _wrap_list_method("__imul__")
-    __setitem__ = _wrap_list_method("__setitem__")
-    append = _wrap_list_method("append")
-    clear = _wrap_list_method("clear")
-    extend = _wrap_list_method("extend")
-    insert = _wrap_list_method("insert")
-    pop = _wrap_list_method("pop")
-    remove = _wrap_list_method("remove")
-    reverse = _wrap_list_method("reverse")
-    sort = _wrap_list_method("sort")
+    __contains__ = _wrap_list_method("__contains__")
+    __eq__ = _wrap_list_method("__eq__")
+    __ge__ = _wrap_list_method("__ge__")
+    __getitem__ = _wrap_list_method("__getitem__")
+    __gt__ = _wrap_list_method("__gt__")
+    __hash__ = _wrap_list_method("__hash__")
+    __iadd__ = _wrap_list_method("__iadd__", True)
+    __imul__ = _wrap_list_method("__imul__", True)
+    __iter__ = _wrap_list_method("__iter__")
+    __le__ = _wrap_list_method("__le__")
+    __len__ = _wrap_list_method("__len__")
+    __le__ = _wrap_list_method("__lt__")
+    __le__ = _wrap_list_method("__ne__")
+    __repr__ = _wrap_list_method("__repr__")
+    __reversed__ = _wrap_list_method("__reversed__")
+    __setitem__ = _wrap_list_method("__setitem__", True)
+    __sizeof__ = _wrap_list_method("__sizeof__")
+    __str__ = _wrap_list_method("__str__")
+    append = _wrap_list_method("append", True)
+    clear = _wrap_list_method("clear", True)
+    copy = _wrap_list_method("copy")
+    count = _wrap_list_method("count")
+    extend = _wrap_list_method("extend", True)
+    index = _wrap_list_method("index")
+    insert = _wrap_list_method("insert", True)
+    pop = _wrap_list_method("pop", True)
+    remove = _wrap_list_method("remove", True)
+    reverse = _wrap_list_method("reverse", True)
+    sort = _wrap_list_method("sort", True)
 
 
 class BaseConfig(object):

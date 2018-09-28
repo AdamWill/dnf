@@ -160,24 +160,93 @@ class ListOptionTest(unittest.TestCase):
         self.assertEqual(self.conf.pluginpath, ["a", "b", "c"])
         self.assertEqual(var, ["a", "b", "c"])
 
+    def test_len(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertEqual(len(var), 3)
+        var.append("d")
+        self.assertEqual(len(var), 4)
+        self.conf._set_value("pluginpath", ["a", "b"])
+        self.assertEqual(len(var), 2)
+
+    def test_str(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertEqual(str(var), "['a', 'b', 'c']")
+        var.append("d")
+        self.assertEqual(str(var), "['a', 'b', 'c', 'd']")
+        self.conf._set_value("pluginpath", ["a", "b"])
+        self.assertEqual(str(var), "['a', 'b']")
+
+    def test_repr(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertEqual(repr(var), "['a', 'b', 'c']")
+        var.append("d")
+        self.assertEqual(repr(var), "['a', 'b', 'c', 'd']")
+        self.conf._set_value("pluginpath", ["a", "b"])
+        self.assertEqual(repr(var), "['a', 'b']")
+
+    def test_count(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertEqual(var.count("a"), 1)
+        var.append("a")
+        self.assertEqual(var.count("a"), 2)
+        self.conf._set_value("pluginpath", ["a", "a", "a"])
+        self.assertEqual(var.count("a"), 3)
+
+    def test_index(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertEqual(var.index("b"), 1)
+        var.append("d")
+        self.assertEqual(var.index("d"), 3)
+        self.conf._set_value("pluginpath", ["c", "b", "a"])
+        self.assertEqual(var.index("c"), 0)
+
+    def test_contains(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertTrue("c" in var)
+        self.assertFalse("d" in var)
+        var.append("d")
+        self.assertTrue("d" in var)
+        self.conf._set_value("pluginpath", ["e", "f", "g"])
+        self.assertTrue("f" in var)
+        self.assertFalse("a" in var)
+
+    def test_equals(self):
+        self.conf.pluginpath = ["a", "b", "c"]
+        var = self.conf.pluginpath
+        self.assertEqual(var, ["a", "b", "c"])
+        var.append("d")
+        self.assertEqual(var, ["a", "b", "c", "d"])
+        self.conf._set_value("pluginpath", ["a", "b"])
+        self.assertEqual(var, ["a", "b"])
+
     def test_multiple_refs(self):
         self.conf.pluginpath = ["a", "b", "c"]
-        ppath = self.conf.pluginpath
+        var = self.conf.pluginpath
         # should be two refs to the same object
-        self.assertIs(ppath, self.conf.pluginpath)
-        ppath.append("d")
+        self.assertIs(var, self.conf.pluginpath)
+        var.append("d")
         # change should apply to both
-        self.assertEqual(ppath, self.conf.pluginpath)
+        self.assertEqual(var, self.conf.pluginpath)
         self.assertEqual(self.conf.pluginpath, ["a", "b", "c", "d"])
         self.conf.pluginpath.append("e")
         # again, change should apply to both
-        self.assertEqual(ppath, self.conf.pluginpath)
+        self.assertEqual(var, self.conf.pluginpath)
         self.assertEqual(self.conf.pluginpath, ["a", "b", "c", "d", "e"])
         # reassign attribute
         self.conf.pluginpath = ["1", "2", "3"]
         # reference should *NO LONGER* be to the same object
-        self.assertIsNot(ppath, self.conf.pluginpath)
-        ppath.append("f")
-        # change to ppath should not affect attribute
-        self.assertEqual(ppath, ["a", "b", "c", "d", "e", "f"])
+        self.assertIsNot(var, self.conf.pluginpath)
+        var.append("f")
+        # change to var should not affect attribute
+        self.assertEqual(var, ["a", "b", "c", "d", "e", "f"])
         self.assertEqual(self.conf.pluginpath, ["1", "2", "3"])
+        # changing the attribute shouldn't affect var either
+        self.conf.pluginpath.append("4")
+        self.assertEqual(self.conf.pluginpath, ["1", "2", "3", "4"])
+        self.assertEqual(var, ["a", "b", "c", "d", "e", "f"])
