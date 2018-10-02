@@ -218,6 +218,9 @@ class ListOptionValue(list):
             # in the cache. See
             # https://github.com/rpm-software-management/dnf/pull/1226
             if self is self._config._lovcache[self._name] and write:
+                # storing an empty list clears OptionStringListAppend
+                # and following _set_value doesn't duplicate data
+                self._config._set_value(self._name, [])
                 self._config._set_value(self._name, self)
             self._cc -= 1
             return result
